@@ -12,7 +12,8 @@ class TwineGraph(object):
         "angled_brackets": re.compile(r"\<\<([^\[\]]*?)\>\>"),
         "double_brackets": re.compile(r"\[\[([^\[\]]*?)\]\]"),
         "parentheses": re.compile(r"\(([^\(\)]*?)\)"),
-        "commands": re.compile(r"(display|go-to|goto|include|link-goto|set|timedgoto)")
+        "commands": re.compile(
+            r"(link|display|go-to|goto|include|linkgoto|link-goto|set|timedgoto|cyclinglink)")
     }
 
     def __init__(self, in_prefix, in_format="html", encoding="utf-8"):
@@ -64,14 +65,14 @@ class TwineGraph(object):
         self.story = {"passages": []}
         self.name_to_pid = {}
 
-        # Detect Twine format automatically
+        # Detect Twine version automatically (TODO: find better way to detect this)
         try:
-            twine_format = "harlowe"
+            twine_version = "v2"
             passage_tag = "tw-passagedata"
             soup_passages = soup.find_all(passage_tag)
             assert len(soup_passages) > 0
         except AssertionError:
-            twine_format = "sugarcube"
+            twine_version = "v1"
             passage_tag = "div"
             soup_passages = soup.find_all(passage_tag)
 
@@ -79,18 +80,17 @@ class TwineGraph(object):
         idx = 1
         passages = []
         for passage in soup_passages:
-            if twine_format == "sugarcube":
+            if twine_version == "v1":
                 try:
                     passage_name = passage["tiddler"]
                     passage_id = idx
                     idx += 1
                 except KeyError:
                     continue
-            elif twine_format == "harlowe":
+            else:  # twine_version == "v2":
                 passage_name = passage["name"]
                 passage_id = int(passage["pid"])
-            else:
-                continue
+            passage_name = passage_name.strip()
             self.name_to_pid[passage_name] = passage_id
             passages.append((passage_id, passage_name, passage.text))
 
@@ -100,33 +100,35 @@ class TwineGraph(object):
                 "pid": passage_id,
                 "name": passage_name,
                 "text": passage_text,
-                "links": self._find_links(passage_text, twine_format=twine_format)
+                "links": self._find_links(passage_text)
             })
 
-    def _find_links(self, text, twine_format="harlowe"):
+    def _find_links(self, text):
         """Discover multiple possible link types from a passage's text."""
         links = []
 
         # Look for command links
-        if twine_format == "harlowe":
-            regex = "parentheses"
-
-        elif twine_format == "sugarcube":
-            regex = "angled_brackets"
-        else:
-            raise ValueError(f"Invalid value for twine_format: {twine_format}")
-        for link in self.regexes[regex].findall(text):
-            command = self.regexes["commands"].match(link)
-            if command:
-                single_quotes = re.findall("'(.*?)\'", link)
-                double_quotes = re.findall('"(.*?)"', link)
-                if double_quotes:
-                    link_name = double_quotes[-1]
-                elif single_quotes:
-                    link_name = single_quotes[-1]
-                else:
-                    link_name = link.split(' ')[1]
-                links.append((link_name, f"<{command.group(0)}>"))
+        for regex in ["parentheses", "angled_brackets"]:
+            for link in self.regexes[regex].findall(text):
+                command = self.regexes["commands"].match(link)
+                if command:
+                    link_names = []
+#                    single_quotes = re.findall(r"\'(.*?)\'", link)
+                    double_quotes = re.findall(r"\"(.*?)\"", link)
+                    if double_quotes:
+                        if command.group(0) == "cyclinglink":
+                            link_names.extend(double_quotes)
+                        else:
+                            link_names.append(double_quotes[-1])
+#                    elif single_quotes:
+#                        link_names.append(single_quotes[-1])
+                    else:
+                        try:
+                            link_names.append(link.split(' ')[1])
+                        except IndexError:
+                            continue
+                    for link_name in link_names:
+                        links.append((link_name, f"<{command.group(0)}>"))
 
         # Look for native links
         for link in self.regexes["double_brackets"].findall(text):
@@ -136,6 +138,8 @@ class TwineGraph(object):
                 link_text, link_name = link.split('->')
             elif len(link.split('|')) == 2:
                 link_text, link_name = link.split('|')
+                if not link_name:
+                    link_name = link_text
             else:
                 link_name = link
                 link_text = link
@@ -143,9 +147,11 @@ class TwineGraph(object):
 
         # Clean up links and put them into structured format
         structured_links = []
+        seen_nametexts = set()
         for link_name, link_text in links:
-            link_name = re.sub('"', '', link_name.strip())
-            if link_name in self.name_to_pid:
+            link_name = link_name.strip()  # re.sub('"', '', link_name.strip())
+            if link_name in self.name_to_pid and (link_name, link_text) not in seen_nametexts:
+                seen_nametexts.add((link_name, link_text))
                 structured_links.append({
                     "text": link_text,
                     "destination": {

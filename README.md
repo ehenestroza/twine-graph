@@ -10,7 +10,6 @@ story structure in freely-available Twine games.
 Twine Graph requires Python 3 and the `beautifulsoup4` and `graphviz` packages. Tested primarily
 on Mac OS X within an Anaconda environment.
 
-
 ### Installation
 
 The easiest way to install Twine Graph is through `pip`:
@@ -58,10 +57,15 @@ of the story, while the output .json file provides a structured representation:
 }
 ```
 
-## Author
+### Known Issues
+
+- Doesn't handle links produced by custom javascript
+- Doesn't handle links referenced through variables (no variable tracking)
+
+### Author
 
 **Enrique Henestroza Anguiano** 
 
-## License
+### License
 
 This project is licensed under the GNU GPL License - see [LICENSE](LICENSE) for details
