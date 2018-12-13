@@ -10,7 +10,8 @@ class TwineGraph(object):
 
     regexes = {
         "angled_brackets": re.compile(r"\<\<([^\[\]]*?)\>\>"),
-        "double_brackets": re.compile(r"\[\[([^\[\]]*?)\]\]"),
+        "double_brackets": re.compile(r"\[\[([^\[].*?[^\]])\]\]"),
+        "inverted_brackets": re.compile(r"\]\[.*"),
         "parentheses": re.compile(r"\(([^\(\)]*?)\)"),
         "commands": re.compile(
             r"(link|display|go-to|goto|include|linkgoto|link-goto|set|timedgoto|cyclinglink)")
@@ -113,15 +114,15 @@ class TwineGraph(object):
                 command = self.regexes["commands"].match(link)
                 if command:
                     link_names = []
-#                    single_quotes = re.findall(r"\'(.*?)\'", link)
                     double_quotes = re.findall(r"\"(.*?)\"", link)
+                    single_quotes = re.findall(r"\'(.*?)\'", link)
                     if double_quotes:
                         if command.group(0) == "cyclinglink":
                             link_names.extend(double_quotes)
                         else:
                             link_names.append(double_quotes[-1])
-#                    elif single_quotes:
-#                        link_names.append(single_quotes[-1])
+                    elif single_quotes:
+                        link_names.append(single_quotes[-1])
                     else:
                         try:
                             link_names.append(link.split(' ')[1])
@@ -132,6 +133,7 @@ class TwineGraph(object):
 
         # Look for native links
         for link in self.regexes["double_brackets"].findall(text):
+            link = self.regexes["inverted_brackets"].sub("", link)
             if len(link.split('<-')) == 2:
                 link_name, link_text = link.split('<-')
             elif len(link.split('->')) == 2:
@@ -149,7 +151,7 @@ class TwineGraph(object):
         structured_links = []
         seen_nametexts = set()
         for link_name, link_text in links:
-            link_name = link_name.strip()  # re.sub('"', '', link_name.strip())
+            link_name = link_name.strip()
             if link_name in self.name_to_pid and (link_name, link_text) not in seen_nametexts:
                 seen_nametexts.add((link_name, link_text))
                 structured_links.append({
