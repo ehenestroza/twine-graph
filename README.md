@@ -21,7 +21,7 @@ pip install twine-graph
 ### Example usage
 
 The installed package can be called from the command line through its entry-point, as in the 
-following sample call (using the example .html file included this project):
+following sample call (using the example .html file included in the github project):
 
 ```
 twine_graph twine_graph_example.html
@@ -59,8 +59,15 @@ of the story, while the output .json file provides a structured representation:
 
 ### Known Issues
 
-- Doesn't handle links produced by custom javascript
-- Doesn't handle links referenced through variables (no variable tracking)
+- Doesn't detect links produced by custom javascript
+- Doesn't detect links referenced through variables (i.e. variable tracking not supported)
+
+### Related Work
+
+- [twine-parser](https://github.com/unwitting/twine-parser): A Javascript utility for parsing 
+twine stories into graph objects.
+- [TwineJson](https://github.com/cauli/TwineJson): A utility for Twine that exports a story
+into JSON format.
 
 ### Author
 
