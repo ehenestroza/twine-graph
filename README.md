@@ -72,7 +72,7 @@ into JSON format.
 ### Author
 
 Enrique Henestroza Anguiano
-- Website: [Datalexic](datalexic.com)
+- Website: [Datalexic](http://datalexic.com)
 
 ### License
 
