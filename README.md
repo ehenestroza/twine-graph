@@ -71,7 +71,8 @@ into JSON format.
 
 ### Author
 
-**Enrique Henestroza Anguiano** 
+Enrique Henestroza Anguiano
+- Website: [Datalexic](datalexic.com)
 
 ### License
 

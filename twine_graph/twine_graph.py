@@ -42,7 +42,8 @@ class TwineGraph(object):
         if remove_singletons:
             pids_linked = set()
             for passage in self.story["passages"]:
-                pids_linked.add(passage["pid"])
+                if passage["links"]:
+                    pids_linked.add(passage["pid"])
                 for link in passage["links"]:
                     pids_linked.add(link["destination"]["pid"])
 
