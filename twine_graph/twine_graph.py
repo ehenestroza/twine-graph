@@ -1,8 +1,7 @@
 """A utility for parsing HTML Twine stories and saving them into json or graph formats."""
-import re
 import json
-from bs4 import BeautifulSoup
-from graphviz import Digraph
+import re
+from .twine_parser import TwineParser
 
 
 class TwineGraph(object):
@@ -17,27 +16,17 @@ class TwineGraph(object):
             r"(link|display|go-to|goto|include|linkgoto|link-goto|set|timedgoto|cyclinglink)")
     }
 
-    def __init__(self, in_prefix, in_format="html", encoding="utf-8"):
+    def __init__(self, source, in_format="html"):
         """Loads a story either from html with parsing, or directly from json."""
         if in_format == "html":
-            soup = BeautifulSoup(open(f"{in_prefix}.html", "r", -1, encoding, "ignore"), "lxml")
-            self._parse_story(soup)
+            self._parse_story(source)
         elif in_format == "json":
-            self.story = json.load(open(f"{in_prefix}.json", "r", -1, encoding, "ignore"))
+            self.story = json.loads(source)
         else:
             raise ValueError(f"Invalid value for in_format: {in_format}")
 
-    def save_json(self, out_prefix, indent=2):
-        """Saves a json representation of the story to a file."""
-        with open(f"{out_prefix}.json", 'w', -1, 'utf-8', 'ignore') as f:
-            json.dump(self.story, f, indent=indent)
-
-    def save_graph(self, out_prefix, out_format='pdf', title=None, passage_labels=True,
-                   link_labels=False, remove_singletons=False, char_limit=80):
+    def save_graph(self, passage_labels=True, link_labels=False, remove_singletons=False, char_limit=80):
         """Saves a graph representation of the story to a file."""
-        comment = title if title is not None else out_prefix
-        dot = Digraph(comment=comment)
-
         # Find singletons
         if remove_singletons:
             pids_linked = set()
@@ -48,61 +37,41 @@ class TwineGraph(object):
                     pids_linked.add(link["destination"]["pid"])
 
         # Determine node name for each passage and create nodes
+        nodes = []
         for passage in self.story["passages"]:
             if remove_singletons and passage["pid"] not in pids_linked:
                 continue
             label = self._trim_text(passage["name"], char_limit) if passage_labels else None
-            dot.node(str(passage["pid"]), label)
+            nodes.append((str(passage["pid"]), label))
 
         # Create edges for passages
+        edges = []
         for passage in self.story["passages"]:
             for link in passage["links"]:
                 label = self._trim_text(link["text"], char_limit) if link_labels else None
-                dot.edge(str(passage["pid"]), str(link["destination"]["pid"]), label)
-        dot.format = out_format
-        dot.render(f"{out_prefix}.gv")
+                edges.append((str(passage["pid"]), str(link["destination"]["pid"]), label))
 
-    def _parse_story(self, soup):
+        return nodes, edges
+
+    def _parse_story(self, source):
         """Find all passage tags and pull text and links into a structured story."""
         self.story = {"passages": []}
         self.name_to_pid = {}
 
-        # Detect Twine version automatically (TODO: find better way to detect this)
-        try:
-            twine_version = "v2"
-            passage_tag = "tw-passagedata"
-            soup_passages = soup.find_all(passage_tag)
-            assert len(soup_passages) > 0
-        except AssertionError:
-            twine_version = "v1"
-            passage_tag = "div"
-            soup_passages = soup.find_all(passage_tag)
+        parser = TwineParser()
+        parser.feed(source)
 
         # Store passages as a list and map names to ids
-        idx = 1
-        passages = []
-        for passage in soup_passages:
-            if twine_version == "v1":
-                try:
-                    passage_name = passage["tiddler"]
-                    passage_id = idx
-                    idx += 1
-                except KeyError:
-                    continue
-            else:  # twine_version == "v2":
-                passage_name = passage["name"]
-                passage_id = int(passage["pid"])
-            passage_name = passage_name.strip()
-            self.name_to_pid[passage_name] = passage_id
-            passages.append((passage_id, passage_name, passage.text))
+        for passage in parser.passages:
+            self.name_to_pid[passage.name] = passage.id
 
         # Store passages into story as structured data
-        for passage_id, passage_name, passage_text in passages:
+        for passage in parser.passages:
             self.story["passages"].append({
-                "pid": passage_id,
-                "name": passage_name,
-                "text": passage_text,
-                "links": self._find_links(passage_text)
+                "pid": passage.id,
+                "name": passage.name,
+                "text": passage.text,
+                "links": self._find_links(passage.text)
             })
 
     def _find_links(self, text):

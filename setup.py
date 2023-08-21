@@ -26,10 +26,9 @@ setup(
         'Programming Language :: Python :: 3.8'
     ],
     packages=find_packages(exclude=['examples', 'tests']),
-    install_requires=[
-        'beautifulsoup4',
-        'graphviz'
-    ],
+    extras_require={
+        'graph': ['graphviz']
+    },
     entry_points={
         'console_scripts': [
             'twine_graph=twine_graph.__main__:main',
